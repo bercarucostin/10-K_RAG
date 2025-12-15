@@ -43,7 +43,8 @@ We assume manual parsing of the 10-K structure is intentional and in scope for t
 ├── notebooks/                      # Jupyter notebooks for initial prototyping stage
 │   ├── get_data.ipynb              
 │   ├── preprocess.ipynb            
-│   ├── chunk.ipynb                 
+│   ├── chunk.ipynb           
+│   ├── chatbot.ipynb
 ├── scripts/                        # Actual production scripts when prototyping is over
 │   ├── utils.py                    # Shared utilities (ITEM_PATTERNS, helpers)
 │   └── __pycache__/
@@ -113,10 +114,34 @@ We assume manual parsing of the 10-K structure is intentional and in scope for t
 
 ---
 
-### 4. **get_filings copy.ipynb**
-*Purpose:* Testing/experimentation notebook
+### 4. **chatbot.ipynb**
+*Purpose:* RAG-based chatbot for querying financial information from 10-K filings
 
-**Status:** Development/testing stage
+**Key Steps:**
+1. **Initialize Clients** - Sets up Pinecone indices and Google GenAI client
+2. **Ticker Detection** - Detects mentioned companies from user query:
+   - Apple (AAPL): apple, aapl, ipad, iphone, macbook, airpods
+   - Microsoft (MSFT): microsoft, msft, windows, xbox, surface, azure, office
+   - Amazon (AMZN): amazon, amzn, aws, alexa
+   - Google (GOOGL): google, googl, alphabet, android, youtube, chrome
+   - NVIDIA (NVDA): nvidia, nvda, gpu, cuda, geforce
+3. **Selective Retrieval** - Searches only detected company filings, or all if none detected:
+   - Returns top 20 results if company detected
+   - Returns top 30 results if searching all companies
+4. **Result Enrichment** - Formats retrieved chunks with company name and fiscal year context
+5. **LLM Generation** - Uses Gemini 2.5 Flash to generate answers with:
+   - System instruction: Financial expert assistant who supports claims with direct quotes
+   - Temperature: 0.5 (more deterministic)
+6. **Logging** - Appends each interaction to CSV log with:
+   - `timestamp`: Query execution time
+   - `query`: User's question
+   - `tickers`: Detected companies
+   - `retriever_results`: Retrieved context from filings
+   - `llm_answer`: Generated response
+
+**Output:** 
+- Console output of LLM answer
+- Appended row in `log.csv` with complete interaction data
 
 ---
 
@@ -148,13 +173,39 @@ Raw SGML Filing
     ↓
 [chunk.ipynb] → Extract sections, create chunks with metadata and upsert to Pinecone
     ↓
-TBD
+[chatbot.ipynb] → Query user question → Retrieve relevant chunks → Generate answer → Log interaction
+    ↓
+log.csv (Interaction history with query, retriever results, and LLM answers)
 ```
 
----
+---Usage
+
+### Running the Chatbot
+
+```python
+# Initialize clients and indices (run setup cells first)
+response = chat(
+    query="Compare Amazon's and Nvidia's operating risks.",
+    dense_index=dense_index,
+    sparse_index=sparse_index,
+    genai_client=client,
+    log_path='../log.csv'
+)
+print(response)
+```
+
+The function will:
+1. Automatically detect mentioned companies
+2. Retrieve relevant sections from their 10-K filings
+3. Generate a financial expert response
+4. Log the complete interaction (query, results, answer, timestamp) to the CSV file
 
 ## Future Enhancements
 
+- Improve 10-K parsing and chunking
+- Add support for sparse index retrieval alongside dense index
+- Measure Retriever performance metrics
+- Implement conversation history/context for multi-turn queries
 - TBD
 
 ---
