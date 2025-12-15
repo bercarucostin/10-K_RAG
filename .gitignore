@@ -39,3 +39,4 @@ env/
 # Project specific
 data/
 cfg.json
+log.csv
